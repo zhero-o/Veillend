@@ -1,0 +1,10 @@
+C:\Users\g-ekoh\Documents\trae_projects\Veillend\veilend-soroban\target\release\deps\libversion_check-f3e3234182e73c8e.rmeta: C:\Users\g-ekoh\.cargo\registry\src\index.crates.io-6f17d22bba15001f\version_check-0.9.5\src\lib.rs C:\Users\g-ekoh\.cargo\registry\src\index.crates.io-6f17d22bba15001f\version_check-0.9.5\src\version.rs C:\Users\g-ekoh\.cargo\registry\src\index.crates.io-6f17d22bba15001f\version_check-0.9.5\src\channel.rs C:\Users\g-ekoh\.cargo\registry\src\index.crates.io-6f17d22bba15001f\version_check-0.9.5\src\date.rs
+
+C:\Users\g-ekoh\Documents\trae_projects\Veillend\veilend-soroban\target\release\deps\libversion_check-f3e3234182e73c8e.rlib: C:\Users\g-ekoh\.cargo\registry\src\index.crates.io-6f17d22bba15001f\version_check-0.9.5\src\lib.rs C:\Users\g-ekoh\.cargo\registry\src\index.crates.io-6f17d22bba15001f\version_check-0.9.5\src\version.rs C:\Users\g-ekoh\.cargo\registry\src\index.crates.io-6f17d22bba15001f\version_check-0.9.5\src\channel.rs C:\Users\g-ekoh\.cargo\registry\src\index.crates.io-6f17d22bba15001f\version_check-0.9.5\src\date.rs
+
+C:\Users\g-ekoh\Documents\trae_projects\Veillend\veilend-soroban\target\release\deps\version_check-f3e3234182e73c8e.d: C:\Users\g-ekoh\.cargo\registry\src\index.crates.io-6f17d22bba15001f\version_check-0.9.5\src\lib.rs C:\Users\g-ekoh\.cargo\registry\src\index.crates.io-6f17d22bba15001f\version_check-0.9.5\src\version.rs C:\Users\g-ekoh\.cargo\registry\src\index.crates.io-6f17d22bba15001f\version_check-0.9.5\src\channel.rs C:\Users\g-ekoh\.cargo\registry\src\index.crates.io-6f17d22bba15001f\version_check-0.9.5\src\date.rs
+
+C:\Users\g-ekoh\.cargo\registry\src\index.crates.io-6f17d22bba15001f\version_check-0.9.5\src\lib.rs:
+C:\Users\g-ekoh\.cargo\registry\src\index.crates.io-6f17d22bba15001f\version_check-0.9.5\src\version.rs:
+C:\Users\g-ekoh\.cargo\registry\src\index.crates.io-6f17d22bba15001f\version_check-0.9.5\src\channel.rs:
+C:\Users\g-ekoh\.cargo\registry\src\index.crates.io-6f17d22bba15001f\version_check-0.9.5\src\date.rs:
