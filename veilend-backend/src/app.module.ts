@@ -47,6 +47,7 @@ import {
         },
       ],
     }),
+    PrismaModule,
     StellarModule,
     IndexerModule,
     PortfoliosModule,
