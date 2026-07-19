@@ -2,12 +2,19 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 // This script validates that the backend indexer service handles
-// the contract shape appropriately without relying on external contract spec files.
+// the contract shape defined in veilend.spec.json.
 // It statically analyzes the indexer to ensure drift hasn't removed required event handlers.
 
-const REQUIRED_EVENTS = ['deposit', 'borrow', 'repay', 'withdraw', 'asset_configured'];
-
 function validateContractShape() {
+  const specPath = path.join(__dirname, '..', 'src', 'common', 'contracts', 'veilend.spec.json');
+  if (!fs.existsSync(specPath)) {
+    console.error(`❌ Contract spec file not found at ${specPath}`);
+    process.exit(1);
+  }
+
+  const specContent = JSON.parse(fs.readFileSync(specPath, 'utf8'));
+  const requiredEvents: string[] = specContent.events.map((e: any) => e.topic);
+
   const indexerPath = path.join(__dirname, '..', 'src', 'indexer', 'indexer.service.ts');
   
   if (!fs.existsSync(indexerPath)) {
@@ -18,7 +25,7 @@ function validateContractShape() {
   const indexerContent = fs.readFileSync(indexerPath, 'utf8');
   let missingEvents: string[] = [];
 
-  for (const event of REQUIRED_EVENTS) {
+  for (const event of requiredEvents) {
     // Check if the event string exists in the indexer source
     if (!indexerContent.includes(`'${event}'`) && !indexerContent.includes(`"${event}"`)) {
       missingEvents.push(event);
@@ -31,7 +38,7 @@ function validateContractShape() {
     process.exit(1);
   }
 
-  console.log(`✅ Contract shape validation passed. Indexer handles all required events: ${REQUIRED_EVENTS.join(', ')}`);
+  console.log(`✅ Contract shape validation passed. Indexer handles all required events: ${requiredEvents.join(', ')}`);
 }
 
 validateContractShape();
