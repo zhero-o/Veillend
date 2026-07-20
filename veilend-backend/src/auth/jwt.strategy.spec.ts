@@ -27,7 +27,7 @@ describe('JwtStrategy', () => {
     strategy = module.get(JwtStrategy);
   });
 
-  it('returns the authenticated user when an active session exists', async () => {
+  it('returns the authenticated user when an active session exists', () => {
     const expiresAt = new Date(Date.now() + 60_000);
     prisma.session.findUnique.mockResolvedValue({
       id: 'session-1',
