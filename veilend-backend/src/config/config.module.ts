@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { ConfigModule as NestConfigModule } from '@nestjs/config';
 import { validateConfig, redactConfig } from './validation';
 import { AppConfig } from './app.config';
-import stellarConfig from './stellar.config';
 import { IndexerConfig } from './indexer.config';
 import { AuthConfig } from './auth.config';
 import { AppConfigService } from './app-config.service';

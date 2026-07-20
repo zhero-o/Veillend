@@ -34,7 +34,7 @@ describe('JwtStrategy', () => {
       expiresAt,
     });
 
-    const result = await strategy.validate(reqWithToken('abc'), {
+    const result = strategy.validate(reqWithToken('abc'), {
       walletAddress: 'GABC',
     });
 
