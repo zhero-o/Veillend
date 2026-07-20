@@ -37,6 +37,16 @@ pub enum DataKey {
     AssetReserve(Address),
     Position(Address, Address),
     OraclePrice(Address),
+    /// Per-asset deposit cap (max total deposits for this asset)
+    DepositCap(Address),
+    /// Per-asset borrow cap (max total borrows for this asset)
+    BorrowCap(Address),
+    /// Total deposited amount for an asset across all users
+    TotalDeposited(Address),
+    /// Total borrowed amount for an asset across all users
+    TotalBorrowed(Address),
+    /// Circuit breaker state - paused or not
+    Paused,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -44,6 +54,13 @@ pub enum DataKey {
 pub struct Position {
     pub deposited: i128,
     pub borrowed: i128,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct AssetCaps {
+    pub deposit_cap: i128,
+    pub borrow_cap: i128,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -92,8 +109,16 @@ pub enum VeilLendError {
     OraclePriceMissing = 11,
     /// Operation blocked: contract is paused
     ContractPaused = 12,
+    /// Deposit cap would be exceeded
+    DepositCapExceeded = 13,
+    /// Borrow cap would be exceeded
+    BorrowCapExceeded = 14,
+    /// Invalid cap value (must be positive or -1 for unlimited)
+    InvalidCap = 15,
+    /// Circuit breaker triggered - asset temporarily paused
+    CircuitBreakerTriggered = 16,
     /// Reserve balance is too low for the requested action
-    InsufficientReserve = 13,
+    InsufficientReserve = 17,
 }
 
 #[contractevent(topics = ["veillend", "asset_configured"])]
@@ -146,6 +171,25 @@ pub struct WithdrawEvent {
     pub amount: i128,
 }
 
+#[contractevent(topics = ["veillend", "caps_updated"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CapsUpdated {
+    #[topic]
+    pub admin: Address,
+    #[topic]
+    pub asset: Address,
+    pub deposit_cap: i128,
+    pub borrow_cap: i128,
+}
+
+#[contractevent(topics = ["veillend", "circuit_breaker"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CircuitBreakerEvent {
+    #[topic]
+    pub admin: Address,
+    pub paused: bool,
+}
+
 #[contractevent(topics = ["veillend", "asset_reserve_updated"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AssetReserveUpdated {
@@ -185,6 +229,9 @@ impl VeilLendContract {
         env.storage()
             .instance()
             .set(&DataKey::MinCollateralRatioBps, &min_collateral_ratio_bps);
+
+        // Initialize circuit breaker as not paused
+        env.storage().persistent().set(&DataKey::Paused, &false);
     }
 
     pub fn configure_asset(env: Env, admin: Address, asset: Address, supported: bool) {
@@ -197,6 +244,25 @@ impl VeilLendContract {
         env.storage()
             .persistent()
             .set(&DataKey::SupportedAsset(asset.clone()), &supported);
+
+        // Initialize caps to unlimited (-1) when adding new asset
+        if supported {
+            env.storage()
+                .persistent()
+                .set(&DataKey::DepositCap(asset.clone()), &-1);
+            env.storage()
+                .persistent()
+                .set(&DataKey::BorrowCap(asset.clone()), &-1);
+
+            // Initialize totals to 0
+            env.storage()
+                .persistent()
+                .set(&DataKey::TotalDeposited(asset.clone()), &0);
+            env.storage()
+                .persistent()
+                .set(&DataKey::TotalBorrowed(asset.clone()), &0);
+        }
+
         AssetConfigured {
             admin,
             asset: asset.clone(),
@@ -254,12 +320,151 @@ impl VeilLendContract {
         env.storage().persistent().get(&DataKey::OraclePrice(asset))
     }
 
+    /// Update per-asset deposit and borrow caps (admin only)
+    ///
+    /// Sets the maximum total deposits and borrows allowed for a specific asset.
+    /// A value of -1 means unlimited (no cap).
+    ///
+    /// # Arguments
+    /// * `admin` - The admin address (must match stored admin)
+    /// * `asset` - The asset address to update caps for
+    /// * `deposit_cap` - Maximum total deposits allowed (-1 for unlimited)
+    /// * `borrow_cap` - Maximum total borrows allowed (-1 for unlimited)
+    pub fn update_asset_caps(
+        env: Env,
+        admin: Address,
+        asset: Address,
+        deposit_cap: i128,
+        borrow_cap: i128,
+    ) {
+        let stored_admin = Self::admin(env.clone());
+        if admin != stored_admin {
+            panic_with_error!(&env, VeilLendError::Unauthorized);
+        }
+
+        // Validate caps: must be -1 (unlimited) or positive
+        if deposit_cap != -1 && deposit_cap <= 0 {
+            panic_with_error!(&env, VeilLendError::InvalidCap);
+        }
+        if borrow_cap != -1 && borrow_cap <= 0 {
+            panic_with_error!(&env, VeilLendError::InvalidCap);
+        }
+
+        // Ensure asset is supported
+        Self::require_supported_asset(&env, &asset);
+
+        admin.require_auth();
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::DepositCap(asset.clone()), &deposit_cap);
+        env.storage()
+            .persistent()
+            .set(&DataKey::BorrowCap(asset.clone()), &borrow_cap);
+
+        CapsUpdated {
+            admin,
+            asset,
+            deposit_cap,
+            borrow_cap,
+        }
+        .publish(&env);
+    }
+
+    /// Get the current caps for an asset
+    ///
+    /// # Arguments
+    /// * `asset` - The asset address to get caps for
+    ///
+    /// # Returns
+    /// * `AssetCaps` - Struct containing deposit_cap and borrow_cap (-1 for unlimited)
+    pub fn get_asset_caps(env: Env, asset: Address) -> AssetCaps {
+        let deposit_cap = env
+            .storage()
+            .persistent()
+            .get(&DataKey::DepositCap(asset.clone()))
+            .unwrap_or(-1);
+        let borrow_cap = env
+            .storage()
+            .persistent()
+            .get(&DataKey::BorrowCap(asset.clone()))
+            .unwrap_or(-1);
+
+        AssetCaps {
+            deposit_cap,
+            borrow_cap,
+        }
+    }
+
+    /// Get total deposited amount for an asset
+    ///
+    /// # Arguments
+    /// * `asset` - The asset address to get total deposits for
+    ///
+    /// # Returns
+    /// * `i128` - Total deposited amount
+    pub fn get_total_deposited(env: Env, asset: Address) -> i128 {
+        env.storage()
+            .persistent()
+            .get(&DataKey::TotalDeposited(asset))
+            .unwrap_or(0)
+    }
+
+    /// Get total borrowed amount for an asset
+    ///
+    /// # Arguments
+    /// * `asset` - The asset address to get total borrows for
+    ///
+    /// # Returns
+    /// * `i128` - Total borrowed amount
+    pub fn get_total_borrowed(env: Env, asset: Address) -> i128 {
+        env.storage()
+            .persistent()
+            .get(&DataKey::TotalBorrowed(asset))
+            .unwrap_or(0)
+    }
+
+    /// Toggle circuit breaker (pause/unpause the contract)
+    ///
+    /// When paused, all deposit and borrow operations are blocked.
+    /// Withdraw and repay operations remain available.
+    ///
+    /// # Arguments
+    /// * `admin` - The admin address (must match stored admin)
+    /// * `paused` - true to pause, false to unpause
+    pub fn set_paused(env: Env, admin: Address, paused: bool) {
+        let stored_admin = Self::admin(env.clone());
+        if admin != stored_admin {
+            panic_with_error!(&env, VeilLendError::Unauthorized);
+        }
+
+        admin.require_auth();
+        env.storage().persistent().set(&DataKey::Paused, &paused);
+
+        CircuitBreakerEvent { admin, paused }.publish(&env);
+    }
+
+    /// Check if the contract is paused
+    ///
+    /// # Returns
+    /// * `bool` - true if paused, false otherwise
+    pub fn is_paused(env: Env) -> bool {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+    }
+
     // This scaffold tracks protocol state first; token transfers and privacy proofs
     // can be layered on top once the Stellar asset integrations are finalized.
     pub fn deposit(env: Env, user: Address, asset: Address, amount: i128) {
+        Self::require_not_paused(&env);
         Self::require_supported_asset(&env, &asset);
         Self::require_positive_amount(&env, amount);
         user.require_auth();
+
+        // Check deposit cap
+        Self::check_deposit_cap(&env, &asset, amount);
 
         let mut position = Self::read_position(&env, &user, &asset);
         let mut reserve = Self::read_asset_reserve(&env, &asset);
@@ -267,6 +472,12 @@ impl VeilLendContract {
         reserve.total_balance += amount;
         Self::write_position(&env, &user, &asset, &position);
         Self::write_asset_reserve(&env, &asset, &reserve);
+
+        // Update total deposits
+        let total = Self::get_total_deposited(env.clone(), asset.clone()) + amount;
+        env.storage()
+            .persistent()
+            .set(&DataKey::TotalDeposited(asset.clone()), &total);
 
         DepositEvent {
             user,
@@ -278,9 +489,13 @@ impl VeilLendContract {
     }
 
     pub fn borrow(env: Env, user: Address, asset: Address, amount: i128) {
+        Self::require_not_paused(&env);
         Self::require_supported_asset(&env, &asset);
         Self::require_positive_amount(&env, amount);
         user.require_auth();
+
+        // Check borrow cap
+        Self::check_borrow_cap(&env, &asset, amount);
 
         let mut position = Self::read_position(&env, &user, &asset);
         let mut reserve = Self::read_asset_reserve(&env, &asset);
@@ -293,6 +508,12 @@ impl VeilLendContract {
         Self::write_position(&env, &user, &asset, &position);
         Self::write_asset_reserve(&env, &asset, &reserve);
 
+        // Update total borrows
+        let total = Self::get_total_borrowed(env.clone(), asset.clone()) + amount;
+        env.storage()
+            .persistent()
+            .set(&DataKey::TotalBorrowed(asset.clone()), &total);
+
         BorrowEvent {
             user,
             asset: asset.clone(),
@@ -303,6 +524,7 @@ impl VeilLendContract {
     }
 
     pub fn repay(env: Env, user: Address, asset: Address, amount: i128) {
+        // Repay is allowed even when paused (users can always reduce debt)
         Self::require_supported_asset(&env, &asset);
         Self::require_positive_amount(&env, amount);
         user.require_auth();
@@ -318,6 +540,12 @@ impl VeilLendContract {
         Self::write_position(&env, &user, &asset, &position);
         Self::write_asset_reserve(&env, &asset, &reserve);
 
+        // Update total borrows
+        let total = Self::get_total_borrowed(env.clone(), asset.clone()) - amount;
+        env.storage()
+            .persistent()
+            .set(&DataKey::TotalBorrowed(asset.clone()), &total);
+
         RepayEvent {
             user,
             asset: asset.clone(),
@@ -328,6 +556,7 @@ impl VeilLendContract {
     }
 
     pub fn withdraw(env: Env, user: Address, asset: Address, amount: i128) {
+        // Withdraw is allowed even when paused (users can always remove collateral)
         Self::require_supported_asset(&env, &asset);
         Self::require_positive_amount(&env, amount);
         user.require_auth();
@@ -346,6 +575,12 @@ impl VeilLendContract {
         Self::assert_collateralized(&env, &user, &asset, &position);
         Self::write_position(&env, &user, &asset, &position);
         Self::write_asset_reserve(&env, &asset, &reserve);
+
+        // Update total deposits
+        let total = Self::get_total_deposited(env.clone(), asset.clone()) - amount;
+        env.storage()
+            .persistent()
+            .set(&DataKey::TotalDeposited(asset.clone()), &total);
 
         WithdrawEvent {
             user,
@@ -473,6 +708,63 @@ impl VeilLendContract {
         }
     }
 
+    fn require_not_paused(env: &Env) {
+        let paused: bool = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Paused)
+            .unwrap_or(false);
+        if paused {
+            panic_with_error!(env, VeilLendError::ContractPaused);
+        }
+    }
+
+    fn check_deposit_cap(env: &Env, asset: &Address, amount: i128) {
+        let cap = env
+            .storage()
+            .persistent()
+            .get(&DataKey::DepositCap(asset.clone()))
+            .unwrap_or(-1);
+
+        // -1 means unlimited
+        if cap == -1 {
+            return;
+        }
+
+        let current_total = env
+            .storage()
+            .persistent()
+            .get(&DataKey::TotalDeposited(asset.clone()))
+            .unwrap_or(0);
+
+        if current_total + amount > cap {
+            panic_with_error!(env, VeilLendError::DepositCapExceeded);
+        }
+    }
+
+    fn check_borrow_cap(env: &Env, asset: &Address, amount: i128) {
+        let cap = env
+            .storage()
+            .persistent()
+            .get(&DataKey::BorrowCap(asset.clone()))
+            .unwrap_or(-1);
+
+        // -1 means unlimited
+        if cap == -1 {
+            return;
+        }
+
+        let current_total = env
+            .storage()
+            .persistent()
+            .get(&DataKey::TotalBorrowed(asset.clone()))
+            .unwrap_or(0);
+
+        if current_total + amount > cap {
+            panic_with_error!(env, VeilLendError::BorrowCapExceeded);
+        }
+    }
+
     fn assert_collateralized(env: &Env, _user: &Address, asset: &Address, position: &Position) {
         if position.borrowed == 0 {
             return;
@@ -535,7 +827,11 @@ mod tests {
         assert_eq!(VeilLendError::ZeroAmount as u32, 10);
         assert_eq!(VeilLendError::OraclePriceMissing as u32, 11);
         assert_eq!(VeilLendError::ContractPaused as u32, 12);
-        assert_eq!(VeilLendError::InsufficientReserve as u32, 13);
+        assert_eq!(VeilLendError::DepositCapExceeded as u32, 13);
+        assert_eq!(VeilLendError::BorrowCapExceeded as u32, 14);
+        assert_eq!(VeilLendError::InvalidCap as u32, 15);
+        assert_eq!(VeilLendError::CircuitBreakerTriggered as u32, 16);
+        assert_eq!(VeilLendError::InsufficientReserve as u32, 17);
     }
 
     #[test]
@@ -563,6 +859,10 @@ mod tests {
             VeilLendError::ZeroAmount as u32,
             VeilLendError::OraclePriceMissing as u32,
             VeilLendError::ContractPaused as u32,
+            VeilLendError::DepositCapExceeded as u32,
+            VeilLendError::BorrowCapExceeded as u32,
+            VeilLendError::InvalidCap as u32,
+            VeilLendError::CircuitBreakerTriggered as u32,
             VeilLendError::InsufficientReserve as u32,
         ];
         let mut sorted = codes.to_vec();
