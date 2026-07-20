@@ -29,32 +29,20 @@ describe('SorobanRpcService', () => {
     jest.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
-  providers: [
-    SorobanRpcService,
-    {
-      provide: AppConfigService,
-      useValue: {
-        stellar: {
-          sorobanRpcUrl: 'https://test',
+      providers: [
+        SorobanRpcService,
+        {
+          provide: AppConfigService,
+          useValue: {
+            stellar: {
+              sorobanRpcUrl: 'https://test',
+            },
+            auth: {
+              jwtSecret: 'test',
+            },
+          },
         },
-        auth: {
-          jwtSecret: 'test',
-        },
-      },
-    },
-  ],
-}).compile();
-    provide: AppConfigService,
-    useValue: {
-      stellar: {
-        sorobanRpcUrl: 'https://test',
-      },
-      auth: {
-        jwtSecret: 'test',
-      },
-    },
-  },
-],
+        {
           provide: ConfigService,
           useValue: {
             get: jest

@@ -13,7 +13,7 @@ describe('JwtStrategy', () => {
     return { headers: { authorization: `Bearer ${token}` } } as Request;
   }
 
-  beforeEach( () => {
+  beforeEach(async () => {
     prisma = { session: { findUnique: jest.fn() } };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -45,7 +45,7 @@ describe('JwtStrategy', () => {
     });
   });
 
-  it('throws when no session exists for the token (revoked)', () => {
+  it('throws when no session exists for the token (revoked)', async () => {
     prisma.session.findUnique.mockResolvedValue(null);
 
     await expect(
@@ -53,7 +53,7 @@ describe('JwtStrategy', () => {
     ).rejects.toThrow(UnauthorizedException);
   });
 
-  it('throws when the session has expired', () => {
+  it('throws when the session has expired', async () => {
     prisma.session.findUnique.mockResolvedValue({
       id: 'session-1',
       expiresAt: new Date(Date.now() - 60_000),

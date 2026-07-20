@@ -29,17 +29,18 @@ describe('HorizonService', () => {
     // Reset mocks before each test
     jest.clearAllMocks();
 
-    providers: [
-  HorizonService,
-  {
-    provide: AppConfigService,
-    useValue: {
-      stellar: {
-        horizonUrl: 'https://test',
-      },
-    },
-  },
-],
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        HorizonService,
+        {
+          provide: AppConfigService,
+          useValue: {
+            stellar: {
+              horizonUrl: 'https://test',
+            },
+          },
+        },
+        {
           provide: ConfigService,
           useValue: {
             get: jest

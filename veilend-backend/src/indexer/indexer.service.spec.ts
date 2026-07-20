@@ -46,20 +46,18 @@ describe('IndexerService', () => {
       getEvents: jest.fn().mockResolvedValue({ events: [], cursor: 'abc' }),
     };
 
-    providers: [
-  IndexerService,
-  {
-    provide: AppConfigService,
-    useValue: {
-      stellar: {
-        sorobanRpcUrl: 'https://test',
-      },
-    },
-  },
-],
-          provide: IndexerRepository,
-          useValue: mockRepository,
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        IndexerService,
+        {
+          provide: AppConfigService,
+          useValue: {
+            stellar: {
+              sorobanRpcUrl: 'https://test',
+            },
+          },
         },
+        { provide: IndexerRepository, useValue: mockRepository },
         {
           provide: SorobanRpcService,
           useValue: {
@@ -234,7 +232,7 @@ describe('IndexerService', () => {
       );
     });
 
-    it('should process asset_configured event', async () => {
+    it('should process asset configured event', async () => {
       const mockEvent = {
         id: 'evt-5',
         topic: ['veillend', 'asset_configured', 'admin-addr', 'asset-addr'],
