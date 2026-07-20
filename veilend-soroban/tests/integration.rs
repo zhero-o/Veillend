@@ -1,7 +1,6 @@
 #![cfg(test)]
 
-use soroban_sdk::{testutils::Address as _, token::TokenClient, Address, Env};
-use veilend_soroban::{VeilLendContract, VeilLendContractClient, VeilLendError, AssetCaps};
+fn main() {}
 
 #[test]
 fn test_initialize_contract() {
@@ -27,17 +26,17 @@ fn test_configure_asset() {
 
     let admin = Address::generate(&env);
     let asset = Address::generate(&env);
-    
+
     env.mock_all_auths();
     client.__constructor(&admin, &15_000);
     client.configure_asset(&admin, &asset, &true);
 
     assert_eq!(client.is_asset_supported(&asset), true);
-    
+
     let caps = client.get_asset_caps(&asset);
     assert_eq!(caps.deposit_cap, -1);
     assert_eq!(caps.borrow_cap, -1);
-    
+
     assert_eq!(client.get_total_deposited(&asset), 0);
     assert_eq!(client.get_total_borrowed(&asset), 0);
 }
@@ -51,7 +50,7 @@ fn test_update_asset_caps() {
     let admin = Address::generate(&env);
     let asset = Address::generate(&env);
     let user = Address::generate(&env);
-    
+
     env.mock_all_auths();
     client.__constructor(&admin, &15_000);
     client.configure_asset(&admin, &asset, &true);
@@ -59,7 +58,7 @@ fn test_update_asset_caps() {
 
     // Set caps
     client.update_asset_caps(&admin, &asset, &1000, &500);
-    
+
     let caps = client.get_asset_caps(&asset);
     assert_eq!(caps.deposit_cap, 1000);
     assert_eq!(caps.borrow_cap, 500);
@@ -97,7 +96,7 @@ fn test_circuit_breaker_pause() {
     let admin = Address::generate(&env);
     let asset = Address::generate(&env);
     let user = Address::generate(&env);
-    
+
     env.mock_all_auths();
     client.__constructor(&admin, &15_000);
     client.configure_asset(&admin, &asset, &true);
@@ -142,7 +141,7 @@ fn test_circuit_breaker_unauthorized() {
 
     let admin = Address::generate(&env);
     let attacker = Address::generate(&env);
-    
+
     env.mock_all_auths();
     client.__constructor(&admin, &15_000);
 
@@ -166,7 +165,7 @@ fn test_deposit_and_borrow_with_caps() {
     let asset = Address::generate(&env);
     let user1 = Address::generate(&env);
     let user2 = Address::generate(&env);
-    
+
     env.mock_all_auths();
     client.__constructor(&admin, &15_000);
     client.configure_asset(&admin, &asset, &true);
@@ -213,7 +212,7 @@ fn test_unlimited_caps() {
     let admin = Address::generate(&env);
     let asset = Address::generate(&env);
     let user = Address::generate(&env);
-    
+
     env.mock_all_auths();
     client.__constructor(&admin, &15_000);
     client.configure_asset(&admin, &asset, &true);
@@ -239,7 +238,7 @@ fn test_invalid_caps() {
 
     let admin = Address::generate(&env);
     let asset = Address::generate(&env);
-    
+
     env.mock_all_auths();
     client.__constructor(&admin, &15_000);
     client.configure_asset(&admin, &asset, &true);
@@ -251,7 +250,7 @@ fn test_invalid_caps() {
     assert!(result.is_err());
 
     // Negative cap other than -1 is invalid
-    let result = std::panic::catch_unwin!(!|| {
+    let result = std::panic::catch_unwind(|| {
         client.update_asset_caps(&admin, &asset, &-2, &500);
     });
     assert!(result.is_err());
@@ -270,7 +269,7 @@ fn test_cap_update_events() {
 
     let admin = Address::generate(&env);
     let asset = Address::generate(&env);
-    
+
     env.mock_all_auths();
     client.__constructor(&admin, &15_000);
     client.configure_asset(&admin, &asset, &true);
@@ -289,7 +288,7 @@ fn test_circuit_breaker_events() {
     let client = VeilLendContractClient::new(&env, &contract_id);
 
     let admin = Address::generate(&env);
-    
+
     env.mock_all_auths();
     client.__constructor(&admin, &15_000);
 

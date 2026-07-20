@@ -164,7 +164,7 @@ impl VeilLendContract {
         env.storage()
             .instance()
             .set(&DataKey::MinCollateralRatioBps, &min_collateral_ratio_bps);
-        
+
         // Initialize circuit breaker as not paused
         env.storage().persistent().set(&DataKey::Paused, &false);
     }
@@ -179,7 +179,7 @@ impl VeilLendContract {
         env.storage()
             .persistent()
             .set(&DataKey::SupportedAsset(asset.clone()), &supported);
-        
+
         // Initialize caps to unlimited (-1) when adding new asset
         if supported {
             env.storage()
@@ -188,7 +188,7 @@ impl VeilLendContract {
             env.storage()
                 .persistent()
                 .set(&DataKey::BorrowCap(asset.clone()), &-1);
-            
+
             // Initialize totals to 0
             env.storage()
                 .persistent()
@@ -254,7 +254,13 @@ impl VeilLendContract {
     /// * `asset` - The asset address to update caps for
     /// * `deposit_cap` - Maximum total deposits allowed (-1 for unlimited)
     /// * `borrow_cap` - Maximum total borrows allowed (-1 for unlimited)
-    pub fn update_asset_caps(env: Env, admin: Address, asset: Address, deposit_cap: i128, borrow_cap: i128) {
+    pub fn update_asset_caps(
+        env: Env,
+        admin: Address,
+        asset: Address,
+        deposit_cap: i128,
+        borrow_cap: i128,
+    ) {
         let stored_admin = Self::admin(env.clone());
         if admin != stored_admin {
             panic_with_error!(&env, VeilLendError::Unauthorized);
@@ -272,7 +278,7 @@ impl VeilLendContract {
         Self::require_supported_asset(&env, &asset);
 
         admin.require_auth();
-        
+
         env.storage()
             .persistent()
             .set(&DataKey::DepositCap(asset.clone()), &deposit_cap);
@@ -297,16 +303,21 @@ impl VeilLendContract {
     /// # Returns
     /// * `AssetCaps` - Struct containing deposit_cap and borrow_cap (-1 for unlimited)
     pub fn get_asset_caps(env: Env, asset: Address) -> AssetCaps {
-        let deposit_cap = env.storage()
+        let deposit_cap = env
+            .storage()
             .persistent()
             .get(&DataKey::DepositCap(asset.clone()))
             .unwrap_or(-1);
-        let borrow_cap = env.storage()
+        let borrow_cap = env
+            .storage()
             .persistent()
             .get(&DataKey::BorrowCap(asset.clone()))
             .unwrap_or(-1);
-        
-        AssetCaps { deposit_cap, borrow_cap }
+
+        AssetCaps {
+            deposit_cap,
+            borrow_cap,
+        }
     }
 
     /// Get total deposited amount for an asset
@@ -362,7 +373,10 @@ impl VeilLendContract {
     /// # Returns
     /// * `bool` - true if paused, false otherwise
     pub fn is_paused(env: Env) -> bool {
-        env.storage().persistent().get(&DataKey::Paused).unwrap_or(false)
+        env.storage()
+            .persistent()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
     }
 
     // This scaffold tracks protocol state first; token transfers and privacy proofs
@@ -560,7 +574,7 @@ impl VeilLendContract {
             .persistent()
             .get(&DataKey::DepositCap(asset.clone()))
             .unwrap_or(-1);
-        
+
         // -1 means unlimited
         if cap == -1 {
             return;
@@ -583,7 +597,7 @@ impl VeilLendContract {
             .persistent()
             .get(&DataKey::BorrowCap(asset.clone()))
             .unwrap_or(-1);
-        
+
         // -1 means unlimited
         if cap == -1 {
             return;
