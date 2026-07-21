@@ -14,6 +14,7 @@ import { AssetsModule } from './assets/assets.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
+import { ProtocolModule } from './protocol/protocol.module';
 import { ConfigModule } from './config/config.module';
 import { AppLoggerService } from './common/logging/app-logger.service';
 import { LoggingInterceptor } from './common/logging/logging.interceptor';
@@ -54,6 +55,7 @@ import {
     TransactionsModule,
     AdminModule,
     AuthModule,
+    ProtocolModule,
   ],
   controllers: [AppController],
   providers: [
