@@ -5,10 +5,16 @@ import { AuthenticatedRequest } from './types/authenticated-request.type';
 
 describe('AuthController', () => {
   let controller: AuthController;
-  let authService: { revokeSession: jest.Mock };
+  let authService: {
+    generateNonce: jest.Mock;
+    revokeSession: jest.Mock;
+  };
 
   beforeEach(async () => {
-    authService = { revokeSession: jest.fn().mockResolvedValue(undefined) };
+    authService = {
+      generateNonce: jest.fn().mockResolvedValue('mock-nonce'),
+      revokeSession: jest.fn().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
@@ -16,6 +22,15 @@ describe('AuthController', () => {
     }).compile();
 
     controller = module.get(AuthController);
+  });
+
+  describe('createNonce', () => {
+    it('calls authService.generateNonce and returns the nonce', async () => {
+      const result = await controller.createNonce({ walletAddress: 'GABC' });
+
+      expect(authService.generateNonce).toHaveBeenCalledWith('GABC');
+      expect(result).toEqual({ nonce: 'mock-nonce' });
+    });
   });
 
   describe('getSession', () => {
